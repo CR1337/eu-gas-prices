@@ -3,6 +3,9 @@ import pandas as pd
 import requests
 import json
 import os
+import io
+from pathlib import Path
+import zipfile
 import openpyxl as xls
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -276,7 +279,7 @@ def generate_filename(
     return filename
 
 
-def main() -> None:
+def main() -> io.BytesIO:
     download_link = get_download_link()
     workbook = download(download_link)
     since = datetime(year=2016, month=7, day=20)
@@ -284,6 +287,8 @@ def main() -> None:
     recent_super_df, all_super_df, recent_diesel_df, all_diesel_df = prepare_data(
         super_df, diesel_df
     )
+
+    filenames = []
 
     for df, all_, diesel in zip(
         [recent_super_df, all_super_df, recent_diesel_df, all_diesel_df],
@@ -302,9 +307,21 @@ def main() -> None:
             rows.append(row)
 
         filename = generate_filename(all_, diesel, since)
+        filenames.append(filename)
 
         with open(filename, "w", encoding="utf-8") as f:
             f.writelines([header] + rows)
+
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for file_path in filenames:
+            path = Path(file_path)
+            zip_file.write(path, arcname=path.name)
+
+    zip_buffer.seek(0)
+
+    return zip_buffer
 
 
 if __name__ == "__main__":
